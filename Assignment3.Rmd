@@ -1,0 +1,104 @@
+---
+title: "Assignment3"
+author: "RF"
+date: "3/6/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+data = read.csv("Assignment3Data.csv")
+library(rethinking)
+
+```
+
+## Multivariate linear models
+
+In this assignment you will investigate the relation between different aspects of IQ and symptom severity in ASD (as measured by ADOS). The assignment is meant to make you practice on linear models, multiple predictors and interactions.
+
+The data you will use is the outcome of the psychological testing of the children you analyzed in methods 3.
+Data: https://www.dropbox.com/s/hom2qnmp9hyfwmu/Assignment3Data.csv?dl=0
+The data consists of ChildID, gender, age, diagnosis (ASD), symptom severity (ADOS), several aspects of IQ (NonVerbal/Perceptual,Verbal,Social) and the visit at which the tests were administered. The questions should be answered by focusing on visit 1.
+
+The questions you will have to answer are:
+#only use visit 1
+
+
+1. Assess the relation between symptom severity(ADOS) and IQ(all 3 separately) (focus on visit 1 and children with ASD) and report the model, a plot of the model, a couple of lines describing the quality of the model and interpreting the results. P.S. Should you scale? P.P.S. Don't forget to motivate your priors. P.P.P.S. At least one plot for results and a plot for quality of each model (here and in the next questions) would be appreciated.
+1.1. Verbal IQ and ADOS
+1.2. Non Verbal IQ and ADOS
+1.3. Social IQ and ADOS
+
+#ADOS how severly autistic are the children
+
+
+```{r}
+data = read.csv("Assignment3Data.csv")
+
+ASD1 = subset(data,c(Visit == 1 & ASD == 1))
+#defining the variable
+
+#as we don't know the mean of the distribution we use the mean of the outcome, as the best suggestion
+mean(ASD1$ADOS)
+
+flist <- alist(
+  ADOS ~ dnorm( mu , sigma ) ,
+  mu ~ dnorm( 14 , 3 ) ,
+  sigma ~ dunif( 0 , 21 )
+)
+
+m1 = map(flist, data=ASD1)
+precis(m1)
+
+#model for Verbal IQ
+m2 <- map(
+  flist = alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*VerbalIQ ,
+    a ~ dnorm( 14 , 3 ) ,
+    b ~ dnorm( 0 , 25 ) ,
+    sigma ~ dunif( 0 , 21 ) ),
+  data=ASD1 )
+
+precis(m2, corr = T)
+
+#sampling from the posterior
+post <- extract.samples( m2 , n=1e4 )
+VerbalIQ.seq <- seq( from=8 , to=33 , by=1 )
+
+sim.ADOS = sim(m2, data =list(VerbalIQ = VerbalIQ.seq))
+ADOS.PI = apply(sim.ADOS,2,PI, prob =0.89)
+
+
+plot( ADOS ~ VerbalIQ , data=ASD1 , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+abline(m2)
+# plot a shaded region for 89% HPDI
+for ( i in 1:20 )
+  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
+shade( ADOS.PI , VerbalIQ.seq )
+
+#more overestimating than underestimating
+```
+
+
+2. Do the different aspects of IQ account for different portions of the variance in ADOS? 
+2.1. Does it make sense to have all IQ measures in the same model? First write a few lines answering the question and motivating your answer, including a discussion as to what happens when you put all of them in the same model. Then build a model following your answer. If your answer is "no", you are not free, you still have to answer: are there alternative ways of answering the question?
+2.2. Build the model, assess its quality, write a few lines interpreting the results.
+
+3. Let's now include also the TD children. Does it make sense to ask whether IQ and ADOS are related? Motivate your answer. In any case, if you wanted to build a model to answer that question, which model would you build? Run the model, assess its quality, write a few lines interpreting the results.
+
+4. Let's discuss contents:
+4.1. You have three scores for IQ, do they show shared variance? Is that the same in TD and ASD? What does that tell us about IQ?
+4.2. You have explored the relation between IQ and ADOS. How do you explain that relation from a cognitive perspective? N.B. You can present alternative hypotheses.
+#having IQ and ADOS(both cognitive and function)
+#what could be the plausible relation?
+#causing - with ones comes first - does IQ derive ADOS or the other way around
+
+
+5. Bonus questions: Including measurement errors. 
+5.1. Let's assume that ADOS has a measurement error of 1. How would you model that in any of the previous models? 
+5.2. We know that IQ has an estimated measurement error of 2.12. How would you include that? 
+
+
