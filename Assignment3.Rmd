@@ -34,8 +34,7 @@ The questions you will have to answer are:
 
 
 ```{r}
-data = read.csv("Assignment3Data.csv")
-
+library(rethinking)
 ASD1 = subset(data,c(Visit == 1 & ASD == 1))
 #defining the variable
 
@@ -47,29 +46,32 @@ flist <- alist(
   mu ~ dnorm( 14 , 3 ) ,
   sigma ~ dunif( 0 , 21 )
 )
-
 m1 = map(flist, data=ASD1)
 precis(m1)
 
-#model for Verbal IQ
+```
+
+```{r}
+#model for Verbal IQ----
 m2 <- map(
   flist = alist(
     ADOS ~ dnorm( mu , sigma ) ,
     mu <- a + b*VerbalIQ ,
     a ~ dnorm( 14 , 3 ) ,
+    #b is based on the IQ 
     b ~ dnorm( 0 , 25 ) ,
     sigma ~ dunif( 0 , 21 ) ),
   data=ASD1 )
 
-precis(m2, corr = T)
+precis(m2)
 
 #sampling from the posterior
 post <- extract.samples( m2 , n=1e4 )
 VerbalIQ.seq <- seq( from=8 , to=33 , by=1 )
 
 sim.ADOS = sim(m2, data =list(VerbalIQ = VerbalIQ.seq))
+#percent intervaller for ADOS
 ADOS.PI = apply(sim.ADOS,2,PI, prob =0.89)
-
 
 plot( ADOS ~ VerbalIQ , data=ASD1 , col=col.alpha(rangi2,0.5) )
 # plot the MAP line, aka the mean mu for each weight
@@ -82,10 +84,187 @@ shade( ADOS.PI , VerbalIQ.seq )
 #more overestimating than underestimating
 ```
 
+```{r}
+#model for non-Verbal IQ----
+m3 <- map(
+  flist = alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*NonVerbalIQ ,
+    a ~ dnorm( 14 , 3 ) ,
+    #b is based on the IQ 
+    b ~ dnorm( 0 , 29 ) ,
+    sigma ~ dunif( 0 , 21 ) ),
+  data=ASD1 )
+
+precis(m3)
+
+#sampling from the posterior
+post <- extract.samples( m3 , n=1e4 )
+NonVerbalIQ.seq <- seq( from=13 , to=42 , by=1 )
+
+sim.ADOS = sim(m3, data =list(NonVerbalIQ = NonVerbalIQ.seq))
+ADOS.PI = apply(sim.ADOS,2,PI, prob =0.89)
+
+#
+plot( ADOS ~ NonVerbalIQ , data=ASD1 , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu 
+abline(m3)
+# plot a shaded region for 89% HPDI
+for ( i in 1:20 )
+  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
+shade( ADOS.PI , NonVerbalIQ.seq )
+
+#more overestimating than underestimating
+```
+```{r}
+#model for Social IQ----
+m4 <- map(
+  flist = alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*SocialIQ ,
+    a ~ dnorm( 14 , 3 ) ,
+    #b is based on the IQ 
+    b ~ dnorm( 0 , 44) ,
+    sigma ~ dunif( 0 , 21 ) ),
+  data=ASD1 )
+
+precis(m4)
+
+#sampling from the posterior
+post <- extract.samples( m4 , n=1e4 )
+SocialIQ.seq <- seq( from=61 , to=105 , by=1 )
+
+sim.ADOS = sim(m4, data =list(SocialIQ = SocialIQ.seq))
+ADOS.PI = apply(sim.ADOS,2,PI, prob =0.89)
+
+#
+plot( ADOS ~ SocialIQ , data=ASD1 , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu 
+abline(m4)
+# plot a shaded region for 89% HPDI
+for ( i in 1:20 )
+  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
+shade( ADOS.PI , SocialIQ.seq )
+
+#more overestimating than underestimating
+```
+
 
 2. Do the different aspects of IQ account for different portions of the variance in ADOS? 
 2.1. Does it make sense to have all IQ measures in the same model? First write a few lines answering the question and motivating your answer, including a discussion as to what happens when you put all of them in the same model. Then build a model following your answer. If your answer is "no", you are not free, you still have to answer: are there alternative ways of answering the question?
 2.2. Build the model, assess its quality, write a few lines interpreting the results.
+
+We believe that all IQ measures should be in the same model, since they each account for different IQ qualities. 
+There is a possibility that Verbal IQ and Social IQ correlates, because both account for some kind of social communication. This could lead to wider percent intervals and weird beta-values. 
+
+
+IQ might be an expression of some underlying XXXX
+
+
+```{r}
+#model for ADOS predicted by Social, Nonverbal and Verbal IQ
+m5 <- map(
+  flist = alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a  + bV*VerbalIQ + bN*NonVerbalIQ+ bS*SocialIQ,
+    a ~ dnorm( 14 , 3 ) ,
+    bV ~ dnorm( 0 , 25 ) ,
+    bN ~ dnorm( 0 , 29) ,
+    bS ~ dnorm( 0 , 44) ,
+    sigma ~ dunif( 0 , 21 ) ),
+  data=ASD1 )
+
+precis(m5, digits = 3)
+
+plot(precis(m5))
+
+#a counterfactual plot
+#plotting impact of changes in verbalIQ on predictions
+N.avg <- mean( ASD1$NonVerbalIQ)
+S.avg = mean(ASD1$SocialIQ)
+V.seq <- seq( from=8 , to=33 , length.out=30)
+pred.data2 <- data.frame(
+  NonVerbalIQ=N.avg,
+  VerbalIQ=V.seq, SocialIQ = S.avg
+)
+
+#compute counterfacual mean divorce
+mu <- link( m5 , data=pred.data2 )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI )
+#simulate counterfactual divorce outcomes
+V.sim <- sim( m5, data=pred.data2 , n=1e4 )
+V.PI <- apply( V.sim , 2 , PI )
+
+# plotting 
+plot( ADOS ~ VerbalIQ , data=ASD1 , type="n" )
+mtext( "NonverbalIQ=0 & SocialIQ= 0" )
+lines( V.seq , mu.mean )
+shade( mu.PI , V.seq )
+shade( V.PI , V.seq )
+
+```
+
+```{r}
+
+
+#a counterfactual plot
+#plotting impact of changes in NonverbalIQ on predictions
+V.avg <- mean( ASD1$VerbalIQ)
+S.avg = mean(ASD1$SocialIQ)
+N.seq <- seq( from=13 , to=42 , length.out=30)
+pred.data2 <- data.frame(
+  NonVerbalIQ=N.seq,
+  VerbalIQ=V.avg, SocialIQ = S.avg
+)
+
+#compute counterfacual mean ADOS
+mu <- link( m5 , data=pred.data2 )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI )
+#simulate counterfactual ADOS outcomes
+N.sim <- sim( m5, data=pred.data2 , n=1e4 )
+N.PI <- apply( N.sim , 2 , PI )
+
+# plotting 
+plot( ADOS ~ NonVerbalIQ , data=ASD1 , type="n" )
+mtext( "verbalIQ = 0 & SocialIQ =0" )
+lines( N.seq , mu.mean )
+shade( mu.PI , N.seq )
+shade( N.PI , N.seq )
+
+```
+
+```{r}
+
+
+#a counterfactual plot
+#plotting impact of changes in socialIQ on predictions
+V.avg <- mean( ASD1$VerbalIQ)
+N.avg = mean(ASD1$NonVerbalIQ)
+S.seq <- seq( from=61 , to=105 , length.out=30)
+pred.data2 <- data.frame(
+  NonVerbalIQ=N.avg,
+  VerbalIQ=V.avg, SocialIQ = S.seq
+)
+
+#compute counterfacual mean divorce
+mu <- link( m5 , data=pred.data2 )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI )
+#simulate counterfactual divorce outcomes
+S.sim <- sim( m5, data=pred.data2 , n=1e4 )
+S.PI <- apply( S.sim , 2 , PI )
+
+# plotting 
+plot( ADOS ~ SocialIQ , data=ASD1 , type="n" )
+mtext( "verbalIQ = 0 & nonverbalIQ =0" )
+lines( S.seq , mu.mean )
+shade( mu.PI , S.seq )
+shade( S.PI , S.seq )
+
+```
+
 
 3. Let's now include also the TD children. Does it make sense to ask whether IQ and ADOS are related? Motivate your answer. In any case, if you wanted to build a model to answer that question, which model would you build? Run the model, assess its quality, write a few lines interpreting the results.
 
