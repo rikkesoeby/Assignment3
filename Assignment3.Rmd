@@ -81,7 +81,6 @@ for ( i in 1:20 )
   abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
 shade( ADOS.PI , VerbalIQ.seq )
 
-#more overestimating than underestimating
 ```
 
 ```{r}
@@ -114,7 +113,6 @@ for ( i in 1:20 )
   abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
 shade( ADOS.PI , NonVerbalIQ.seq )
 
-#more overestimating than underestimating
 ```
 ```{r}
 #model for Social IQ----
@@ -146,7 +144,6 @@ for ( i in 1:20 )
   abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
 shade( ADOS.PI , SocialIQ.seq )
 
-#more overestimating than underestimating
 ```
 
 
@@ -177,6 +174,16 @@ m5 <- map(
 precis(m5, digits = 3)
 
 plot(precis(m5))
+
+#
+
+
+sim.ADOS<- sim( m5, data=ASD1 , n=1e4 )
+#dens plot simulated data from model on raw data
+dens(sim.ADOS, col = "red", xlim = c(-5, 30), ylim = c(0,0.12),  xlab = "ADOS")
+par(new=TRUE)
+dens(ASD1$ADOS, xlim = c(-5, 30), ylim = c(0,0.12), xlab = "ADOS")
+title("model 5")
 
 #a counterfactual plot
 #plotting impact of changes in verbalIQ on predictions
@@ -268,8 +275,159 @@ shade( S.PI , S.seq )
 
 3. Let's now include also the TD children. Does it make sense to ask whether IQ and ADOS are related? Motivate your answer. In any case, if you wanted to build a model to answer that question, which model would you build? Run the model, assess its quality, write a few lines interpreting the results.
 
+```{r}
+
+d1 = subset(data,Visit == 1)
+
+d1 <- d1[ complete.cases(d1) , ]
+
+#calulating the mean of ados to 
+mean(d1$ADOS)
+
+m6 <- map(
+  flist = alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a  + bV*VerbalIQ + bN*NonVerbalIQ+ bS*SocialIQ,
+    a ~ dnorm( 7 , 3 ) ,
+    bV ~ dnorm( 0 , 25 ) ,
+    bN ~ dnorm( 0 , 29) ,
+    bS ~ dnorm( 0 , 54) ,
+    sigma ~ dunif( 0 , 21 ) ),
+  data=d1 )
+
+precis(m6, digits = 3)
+
+
+sim.ADOS1<- sim( m6, data=d1 , n=1e4 )
+#dens plot simulated data from model on raw data
+dens(sim.ADOS1, col = "red", xlim = c(-15, 35), ylim = c(0,0.12),  xlab = "ADOS")
+par(new=TRUE)
+dens(d1$ADOS, xlim = c(-15, 35), ylim = c(0,0.12), xlab = "ADOS")
+title("model 6")
+
+```
+
+
+```{r}
+
+#a counterfactual plot
+#plotting impact of changes in verbalIQ on predictions
+N.avg <- mean( d1$NonVerbalIQ)
+S.avg = mean(d1$SocialIQ)
+V.seq <- seq( from=8 , to=33 , length.out=30)
+pred.data2 <- data.frame(
+  NonVerbalIQ=N.avg,
+  VerbalIQ=V.seq, SocialIQ = S.avg
+)
+
+#compute counterfacual mean divorce
+mu <- link( m6 , data=pred.data2 )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI )
+#simulate counterfactual divorce outcomes
+V.sim <- sim( m6, data=pred.data2 , n=1e4 )
+V.PI <- apply( V.sim , 2 , PI )
+
+# plotting 
+plot( ADOS ~ VerbalIQ , data=d1 , type="n" )
+mtext( "NonverbalIQ=0 & SocialIQ= 0" )
+lines( V.seq , mu.mean )
+shade( mu.PI , V.seq )
+shade( V.PI , V.seq )
+
+```
+
+```{r}
+
+
+#a counterfactual plot
+#plotting impact of changes in NonverbalIQ on predictions
+V.avg <- mean( d1$VerbalIQ)
+S.avg = mean(d1$SocialIQ)
+N.seq <- seq( from=13 , to=42 , length.out=30)
+pred.data2 <- data.frame(
+  NonVerbalIQ=N.seq,
+  VerbalIQ=V.avg, SocialIQ = S.avg
+)
+
+#compute counterfacual mean ADOS
+mu <- link( m6 , data=pred.data2 )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI )
+#simulate counterfactual ADOS outcomes
+N.sim <- sim( m6, data=pred.data2 , n=1e4 )
+N.PI <- apply( N.sim , 2 , PI )
+
+# plotting 
+plot( ADOS ~ NonVerbalIQ , data=d1 , type="n" )
+mtext( "verbalIQ = 0 & SocialIQ =0" )
+lines( N.seq , mu.mean )
+shade( mu.PI , N.seq )
+shade( N.PI , N.seq )
+
+```
+
+```{r}
+
+
+#a counterfactual plot
+#plotting impact of changes in socialIQ on predictions
+V.avg <- mean( d1$VerbalIQ)
+N.avg = mean(d1$NonVerbalIQ)
+S.seq <- seq( from=61 , to=115 , length.out=30)
+pred.data2 <- data.frame(
+  NonVerbalIQ=N.avg,
+  VerbalIQ=V.avg, SocialIQ = S.seq
+)
+
+#compute counterfacual mean divorce
+mu <- link( m6 , data=pred.data2 )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI )
+#simulate counterfactual divorce outcomes
+S.sim <- sim( m6, data=pred.data2 , n=1e4 )
+S.PI <- apply( S.sim , 2 , PI )
+
+# plotting 
+plot( ADOS ~ SocialIQ , data=d1 , type="n" )
+mtext( "verbalIQ = 0 & nonverbalIQ =0" )
+lines( S.seq , mu.mean )
+shade( mu.PI , S.seq )
+shade( S.PI , S.seq )
+
+```
+
+
+
 4. Let's discuss contents:
 4.1. You have three scores for IQ, do they show shared variance? Is that the same in TD and ASD? What does that tell us about IQ?
+
+```{r}
+TD1 = subset(data, c(Visit == 1 & ASD == 0))
+TD1 <- TD1[ complete.cases(TD1) , ]
+
+#the correlation for both TD and ASD
+cor( d1$VerbalIQ , d1$NonVerbalIQ)
+cor(d1$VerbalIQ, d1$SocialIQ)
+cor(d1$NonVerbalIQ, d1$SocialIQ)
+
+
+#the correlation for TD
+cor( TD1$VerbalIQ , TD1$NonVerbalIQ)
+cor(TD1$VerbalIQ, TD1$SocialIQ)
+cor(TD1$NonVerbalIQ, TD1$SocialIQ)
+
+#the correlation for ASD
+cor(ASD1$VerbalIQ , ASD1$NonVerbalIQ)
+cor(ASD1$VerbalIQ, ASD1$SocialIQ)
+cor(ASD1$NonVerbalIQ, ASD1$SocialIQ)
+
+#plotting the bivariate posterior distribution of bl and br
+post <- extract.samples(m6)
+plot( bS ~ bN , post , col=col.alpha(rangi2,0.1) , pch=16 )
+
+```
+
 4.2. You have explored the relation between IQ and ADOS. How do you explain that relation from a cognitive perspective? N.B. You can present alternative hypotheses.
 #having IQ and ADOS(both cognitive and function)
 #what could be the plausible relation?
